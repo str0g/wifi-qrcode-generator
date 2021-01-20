@@ -1,0 +1,6 @@
+{
+	"security_standard": "WPA",
+	"ssid": "test-network",
+	"password": "mysupersecretpassword",
+	"hidden": ""
+}
