@@ -1,4 +1,4 @@
-#!/bin/usr/python
+#!/usr/bin/python
 
 from optparse import OptionParser
 from os.path import expanduser
@@ -22,7 +22,7 @@ OUTFILE_TEX = 'out.tex'
 OUTFILE_PDF = OUTFILE_TEX.replace('.tex', '.pdf')
 
 
-def get_profile(path:str):
+def get_profile(path: str):
     with open(path) as fd:
         cfg = json.load(fd)
     return FORMAT.format(**cfg), cfg
@@ -31,7 +31,8 @@ def get_profile(path:str):
 def get_qrcode(data: str):
     qr = qrcode.make(data)
     io = BytesIO()
-    qr.save('test_qr.png')
+    # @TODO verbose
+    #qr.save('test_qr.png')
     qr.save(io, format='png')
     io.seek(0)
     b64 = base64.b64encode(io.getvalue()).decode('utf-8')
@@ -45,18 +46,26 @@ def get_template(path:str):
 
 def build(data: str):
     with tempfile.TemporaryDirectory() as tmpdirname:
-        print('created temporary directory', tmpdirname)
+        # @TODO verbose
+        #print('created temporary directory', tmpdirname)
         current_dir = os.getcwd()
         os.chdir(tmpdirname)
         with open(OUTFILE_TEX, 'w') as fd:
             fd.write(data)
 
         with Popen(['pdflatex', '--shell-escape', OUTFILE_TEX], stdout=PIPE) as proc:
-            out = proc.stdout.read().decode('utf-8').split('\n')
+            out = proc.stdout.read().decode('utf-8')
         # @TODO verbose
-        #print('\n'.join(out))
+        #print(out)
         os.chdir(current_dir)
         copyfile(os.path.join(tmpdirname, OUTFILE_PDF), OUTFILE_PDF)
+
+
+def replace_special(data: str):
+    special = ['&', '%', '$' ,'#' ,'_' ,'{', '}', '~', '^' ,'\\']
+    check = list(data)
+    return ''.join([f'\\{c}' if c in special else c for c in check])
+
 
 
 if __name__ == "__main__":
@@ -76,11 +85,16 @@ if __name__ == "__main__":
     #
     profile, cfg = get_profile(options.input)
 
+    cfg['ssid'] = replace_special(cfg['ssid'])
+    cfg['password'] = replace_special(cfg['password'])
+
     out = {}
     out.update(cfg)
     out.update(get_qrcode(profile))
 
     template = get_template(options.template).format(**out)
+    # @TODO verbose
+    #print(template)
     build(template)
 
     print(f'Created {OUTFILE_PDF}')
