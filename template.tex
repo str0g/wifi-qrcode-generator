@@ -1,0 +1,55 @@
+% build with pdflatex --shell-escape
+
+\documentclass[a4paper]{{article}}
+\usepackage[utf8]{{inputenc}}
+\usepackage{{graphicx}}
+
+% must be set in order to embedded image work
+\graphicspath{{.}}
+%
+
+\pagestyle{{empty}}
+
+\begin{{filecontents*}}{{qrcode.64}}
+{qrcode}
+\end{{filecontents*}}
+
+\newcommand{{\drawqrcodeframe}}[1]{{
+	\IfFileExists{{#1}}{{
+	\fbox{{
+		\begin{{minipage}}[t][3cm][t]{{3cm}}\vspace{{0pt}}
+				\includegraphics[width=3cm, height=3cm]{{#1}}\\
+		\end{{minipage}}
+	}}
+	}}{{}}
+}}
+
+\newcommand{{\drawnfcframe}}{{
+    \fbox{{
+        \begin{{minipage}}[t][3cm][t]{{3cm}}\vspace{{0pt}}
+            \begin{{center}}
+                \vspace{{0.06\textheight}}
+                NFC tag
+            \end{{center}}
+        \end{{minipage}}
+    }}
+}}
+
+
+\begin{{document}}
+\immediate\write18{{base64 -d qrcode.64 > qrcode.png}}
+
+\fbox{{
+    \begin{{minipage}}[t][4.1cm][t]{{7.4cm}}\vspace{{0pt}}
+    \drawqrcodeframe{{qrcode.png}}
+\drawnfcframe
+
+\large{{
+ssid: {ssid}
+\par
+pass: {password}
+}}
+\end{{minipage}}
+}}
+
+\end{{document}}
