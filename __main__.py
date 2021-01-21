@@ -3,13 +3,13 @@
 from optparse import OptionParser
 from os.path import expanduser
 from io import BytesIO
-from subprocess import Popen, PIPE
 from shutil import copyfile
 import json
 import base64
 import tempfile
 import os
 import logging
+import subprocess
 
 import qrcode
 
@@ -49,20 +49,27 @@ def get_template(path:str):
 
 def build(data: str):
     with tempfile.TemporaryDirectory() as tmpdirname:
-        logger.debug('created temporary directory', tmpdirname)
-        current_dir = os.getcwd()
-        os.chdir(tmpdirname)
+        logger.debug(f'created temporary directory {tmpdirname}')
 
-        logger.debug(f'writing to {OUTFILE_TEX}')
-        with open(OUTFILE_TEX, 'w') as fd:
+        out_tex = os.path.join(tmpdirname, OUTFILE_TEX)
+        logger.debug(f'writing to {out_tex}')
+        with open(out_tex, 'w') as fd:
             fd.write(data)
 
         logger.debug('executing build with pdflatex')
-        with Popen(['pdflatex', '--shell-escape', OUTFILE_TEX], stdout=PIPE) as proc:
-            out = proc.stdout.read().decode('utf-8')
+        try:
+            proc = subprocess.run(['pdflatex', '--shell-escape', OUTFILE_TEX], stdout=subprocess.PIPE, timeout=1,
+                            cwd=tmpdirname)
+            proc.check_returncode()
+            logger.debug(proc.stdout.decode('utf-8'))
+        except subprocess.TimeoutExpired as e:
+            logger.warning(proc.stdout.decode('utf-8'))
+            logger.warning(e)
+        except subprocess.CalledProcessError as e:
+            logger.warning(proc.stdout.decode('utf-8'))
+            logger.warning(e)
 
         logger.debug(out)
-        os.chdir(current_dir)
         copyfile(os.path.join(tmpdirname, OUTFILE_PDF), OUTFILE_PDF)
 
 
