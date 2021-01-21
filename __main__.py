@@ -9,6 +9,7 @@ import json
 import base64
 import tempfile
 import os
+import logging
 
 import qrcode
 
@@ -20,19 +21,21 @@ WIFI:T:{security_standard};S:{ssid};P:{password};H:{hidden};\
 
 OUTFILE_TEX = 'out.tex'
 OUTFILE_PDF = OUTFILE_TEX.replace('.tex', '.pdf')
+logger = logging.getLogger('wifi-qrcode-generator')
 
 
 def get_profile(path: str):
     with open(path) as fd:
         cfg = json.load(fd)
+    logger.debug('profile loaded, filling qrcode template')
     return FORMAT.format(**cfg), cfg
 
 
-def get_qrcode(data: str):
+def get_qrcode(data: str, verbose: bool):
     qr = qrcode.make(data)
     io = BytesIO()
-    # @TODO verbose
-    #qr.save('test_qr.png')
+    if verbose:
+        qr.save(OUTFILE_TEX.replace('.tex', '.png'))
     qr.save(io, format='png')
     io.seek(0)
     b64 = base64.b64encode(io.getvalue()).decode('utf-8')
@@ -46,17 +49,19 @@ def get_template(path:str):
 
 def build(data: str):
     with tempfile.TemporaryDirectory() as tmpdirname:
-        # @TODO verbose
-        #print('created temporary directory', tmpdirname)
+        logger.debug('created temporary directory', tmpdirname)
         current_dir = os.getcwd()
         os.chdir(tmpdirname)
+
+        logger.debug(f'writing to {OUTFILE_TEX}')
         with open(OUTFILE_TEX, 'w') as fd:
             fd.write(data)
 
+        logger.debug('executing build with pdflatex')
         with Popen(['pdflatex', '--shell-escape', OUTFILE_TEX], stdout=PIPE) as proc:
             out = proc.stdout.read().decode('utf-8')
-        # @TODO verbose
-        #print(out)
+
+        logger.debug(out)
         os.chdir(current_dir)
         copyfile(os.path.join(tmpdirname, OUTFILE_PDF), OUTFILE_PDF)
 
@@ -67,8 +72,7 @@ def replace_special(data: str):
     return ''.join([f'\\{c}' if c in special else c for c in check])
 
 
-
-if __name__ == "__main__":
+def get_options():
     parser = OptionParser()
     parser.add_option("-i", "--input", type="string",
                       default="config.json",
@@ -76,25 +80,41 @@ if __name__ == "__main__":
     parser.add_option("-t", "--template", type="string",
                       default="template.tex",
                       help="Output template")
-    #
+    parser.add_option("-v", "--verbose", action="store_true", default=False, dest="verbose",
+                      help="Verbose")
+
     (options, args) = parser.parse_args()
     if options.input.find('~') != -1:
         options.input = expanduser(options.input)
     if options.template.find('~') != -1:
         options.template = expanduser(options.template)
+
+    return options, args
+
+
+def set_logger(verbose: bool):
+    logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO)
+
+
+if __name__ == "__main__":
+    #
+    (options, args) = get_options()
+    set_logger(options.verbose)
     #
     profile, cfg = get_profile(options.input)
-
+    #
+    logger.debug('making things with special characters')
     cfg['ssid'] = replace_special(cfg['ssid'])
     cfg['password'] = replace_special(cfg['password'])
 
     out = {}
     out.update(cfg)
-    out.update(get_qrcode(profile))
+    out.update(get_qrcode(profile, options.verbose))
+    logger.debug('data for template has been prepared')
+    logger.debug(out)
 
     template = get_template(options.template).format(**out)
-    # @TODO verbose
-    #print(template)
+    logger.debug(template)
     build(template)
 
-    print(f'Created {OUTFILE_PDF}')
+    logger.info(f'Created {OUTFILE_PDF}')
