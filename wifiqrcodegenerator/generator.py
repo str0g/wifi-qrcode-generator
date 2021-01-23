@@ -21,29 +21,23 @@
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.      #
 #################################################################################
 
-from optparse import OptionParser
-from os.path import expanduser
 from io import BytesIO
 import shutil
-import json
 import base64
 import tempfile
 import os
 import stat
-import logging
 import subprocess
+import logging
 
 import qrcode
 
-#pip install qrcode pillow
-
 logger = logging.getLogger('wifi-qrcode-generator')
-
 OUTFILE_TEX = 'out.tex'
 OUTFILE_PDF = OUTFILE_TEX.replace('.tex', '.pdf')
 
 
-class Generator():
+class Generator:
     SPECIAL = ['&', '%', '$' ,'#' ,'_' ,'{', '}', '~', '^' ,'\\']
     FORMAT = '''\
 WIFI:T:{security_standard};S:{ssid};P:{password};H:{hidden};\
@@ -111,54 +105,3 @@ WIFI:T:{security_standard};S:{ssid};P:{password};H:{hidden};\
                 logger.warning(proc.stdout.decode('utf-8'))
                 logger.warning(e)
         return False
-
-
-def get_options():
-    parser = OptionParser()
-    parser.add_option("-i", "--input", type="string",
-                      default="config.json",
-                      help="Configuration file")
-    parser.add_option("-t", "--template", type="string",
-                      default="template.tex",
-                      help="Output template")
-    parser.add_option("-v", "--verbose", action="store_true", default=False, dest="verbose",
-                      help="Verbose")
-
-    (options, args) = parser.parse_args()
-    if options.input.find('~') != -1:
-        options.input = expanduser(options.input)
-    if options.template.find('~') != -1:
-        options.template = expanduser(options.template)
-
-    return options, args
-
-
-def get_profile(path: str):
-    with open(path) as fd:
-        cfg = json.load(fd)
-    logger.debug('profile loaded, filling qrcode template')
-    return cfg
-
-
-def get_template(path:str):
-    with open(path) as fd:
-        return fd.read()
-
-
-def set_logger(verbose: bool):
-    logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO)
-
-
-if __name__ == "__main__":
-    (options, args) = get_options()
-    set_logger(options.verbose)
-
-    cfg = get_profile(options.input)
-    template = get_template(options.template)
-
-    gen = Generator(cfg['ssid'], cfg['password'], template)
-    outfile = f"{cfg['ssid']}.pdf"
-    if gen.save_file(outfile):
-        logger.info(f'Created {outfile}')
-    else:
-        logger.warning(f'Something went wrong during {outfile} creation')
